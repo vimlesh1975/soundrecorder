@@ -1,0 +1,8 @@
+{
+    "functions": {
+        "app/api/convert-mp3/route.js": {
+            "runtime": "nodejs18.x",
+            "includeFiles": "node_modules/@ffmpeg-installer/**"
+        }
+    }
+}
