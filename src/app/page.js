@@ -143,30 +143,28 @@ function RecordingItem({ rec, index }) {
   const waveSurferRef = useRef(null);
   const readyRef = useRef(false);
 
-  useEffect(() => {
-    const ws = WaveSurfer.create({
-      container: waveRef.current,
-      height: 60,
-      waveColor: "#ccc",
-      progressColor: "#1e88e5",
-    });
+ useEffect(() => {
+  // ✅ Clear previous DOM (StrictMode fix)
+  waveRef.current.innerHTML = "";
 
-    waveSurferRef.current = ws;
+  const ws = WaveSurfer.create({
+    container: waveRef.current,
+    height: 60,
+    waveColor: "#ccc",
+    progressColor: "#1e88e5",
+  });
 
-    ws.on("ready", () => {
-      readyRef.current = true;
-    });
+  waveSurferRef.current = ws;
 
-    ws.load(rec.url);
+  ws.load(rec.url);
 
-    return () => {
-      if (waveSurferRef.current && readyRef.current) {
-        try {
-          waveSurferRef.current.destroy();
-        } catch {}
-      }
-    };
-  }, [rec.url]);
+  return () => {
+    try {
+      ws.destroy();
+    } catch {}
+  };
+}, [rec.url]);
+
 
   function saveRecording() {
     const a = document.createElement("a");
