@@ -3,6 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 
+const styles = {
+  recordingsContainer: {
+    maxHeight: "800px",      // 👈 adjust as needed
+    overflowY: "auto",
+    paddingRight: 6,         // avoids scrollbar overlap
+    marginTop: 10,
+    border: "1px solid #eee",
+    borderRadius: 8,
+    WebkitOverflowScrolling: "touch"
+  },
+};
+
 export default function Recorder() {
   const canvasRef = useRef(null);
   const liveAnalyserRef = useRef(null);
@@ -19,9 +31,13 @@ export default function Recorder() {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: { exact: "default" },
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        // echoCancellation: true,
+        // noiseSuppression: true,
+        // autoGainControl: true,
+
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
       },
     });
 
@@ -130,9 +146,20 @@ export default function Recorder() {
       {/* 🔽 RECORDING LIST */}
       <h3 style={{ marginTop: 30 }}>📂 Recordings</h3>
 
-      {recordings.map((rec, index) => (
-        <RecordingItem key={rec.id} rec={rec} index={index} />
-      ))}
+      <div style={styles.recordingsContainer}>
+        {recordings.length === 0 && (
+          <div style={{ color: "#777", fontSize: 14 }}>
+            No recordings yet
+          </div>
+        )}
+
+        {recordings.map((rec, index) => (
+          <RecordingItem key={rec.id} rec={rec} index={index} />
+        ))}
+      </div>
+
+
+
     </div>
   );
 }
