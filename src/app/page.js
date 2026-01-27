@@ -13,6 +13,30 @@ const styles = {
     borderRadius: 8,
     WebkitOverflowScrolling: "touch"
   },
+
+  page: {
+    maxWidth: 500,
+    margin: "auto",
+    height: "100vh",          // 👈 full screen
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  fixedTop: {
+    padding: 20,
+    background: "#fff",
+    position: "sticky",      // 👈 stays visible
+    top: 0,
+    zIndex: 10,
+    borderBottom: "1px solid #eee",
+  },
+
+  scrollArea: {
+    flex: 1,                 // 👈 takes remaining height
+    overflowY: "auto",
+    padding: 20,
+    WebkitOverflowScrolling: "touch",
+  },
 };
 
 export default function Recorder() {
@@ -118,35 +142,39 @@ export default function Recorder() {
   }
 
   return (
-    <div style={{ maxWidth: 500, margin: "auto", padding: 20 }}>
-      <h2>🎙 Audio Recorder</h2>
+    <div style={styles.page}>
+      {/* 🔒 FIXED HEADER */}
+      <div style={styles.fixedTop}>
+        <h2>🎙 Audio Recorder</h2>
 
-      <button
-        onClick={recording ? stopRecording : startRecording}
-        style={{
-          width: "100%",
-          padding: 14,
-          fontSize: 18,
-          background: recording ? "#e53935" : "#1e88e5",
-          color: "#fff",
-          border: "none",
-          borderRadius: 10,
-        }}
-      >
-        {recording ? "Stop Recording" : "Start Recording"}
-      </button>
+        <button
+          onClick={recording ? stopRecording : startRecording}
+          style={{
+            width: "100%",
+            padding: 14,
+            fontSize: 18,
+            background: recording ? "#e53935" : "#1e88e5",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+          }}
+        >
+          {recording ? "Stop Recording" : "Start Recording"}
+        </button>
 
-      <canvas
-        ref={canvasRef}
-        width={460}
-        height={80}
-        style={{ marginTop: 20, width: "100%" }}
-      />
+        {/* Live waveform */}
+        <canvas
+          ref={canvasRef}
+          width={460}
+          height={80}
+          style={{ marginTop: 12, width: "100%" }}
+        />
+      </div>
 
-      {/* 🔽 RECORDING LIST */}
-      <h3 style={{ marginTop: 30 }}>📂 Recordings</h3>
+      {/* 🔽 SCROLLABLE RECORDINGS */}
+      <div style={styles.scrollArea}>
+        <h3>📂 Recordings</h3>
 
-      <div style={styles.recordingsContainer}>
         {recordings.length === 0 && (
           <div style={{ color: "#777", fontSize: 14 }}>
             No recordings yet
@@ -157,11 +185,10 @@ export default function Recorder() {
           <RecordingItem key={rec.id} rec={rec} index={index} />
         ))}
       </div>
-
-
-
     </div>
   );
+
+
 }
 
 function RecordingItem({ rec, index }) {
