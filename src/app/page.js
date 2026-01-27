@@ -2,51 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
-
-const styles = {
-  recordingsContainer: {
-    maxHeight: "800px",      // 👈 adjust as needed
-    overflowY: "auto",
-    paddingRight: 6,         // avoids scrollbar overlap
-    marginTop: 10,
-    border: "1px solid #eee",
-    borderRadius: 8,
-    WebkitOverflowScrolling: "touch"
-  },
-
-  page: {
-    maxWidth: 500,
-    margin: "auto",
-    height: "100vh",          // 👈 full screen
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  fixedTop: {
-    padding: 20,
-    background: "#fff",
-    position: "sticky",      // 👈 stays visible
-    top: 0,
-    zIndex: 10,
-    borderBottom: "1px solid #eee",
-  },
-
-  scrollArea: {
-    flex: 1,                 // 👈 takes remaining height
-    overflowY: "auto",
-    padding: 20,
-    WebkitOverflowScrolling: "touch",
-  },
-};
+import styles from "./recorder.module.css";
 
 export default function Recorder() {
   const canvasRef = useRef(null);
-  const liveAnalyserRef = useRef(null);
-  const liveDataRef = useRef(null);
-  const liveAnimRef = useRef(null);
+  const analyserRef = useRef(null);
+  const dataRef = useRef(null);
+  const animRef = useRef(null);
 
   const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const chunksRef = useRef([]);
 
   const [recording, setRecording] = useState(false);
   const [recordings, setRecordings] = useState([]);
@@ -55,27 +20,24 @@ export default function Recorder() {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: { exact: "default" },
-        // echoCancellation: true,
-        // noiseSuppression: true,
-        // autoGainControl: true,
-
         echoCancellation: false,
         noiseSuppression: false,
-        autoGainControl: false
+        autoGainControl: false,
       },
     });
 
-    // MediaRecorder
+    /* MediaRecorder */
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: "audio/webm",
     });
-    mediaRecorderRef.current = mediaRecorder;
-    audioChunksRef.current = [];
 
-    mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+    mediaRecorderRef.current = mediaRecorder;
+    chunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (e) => chunksRef.current.push(e.data);
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
 
       setRecordings((prev) => [
@@ -90,95 +52,85 @@ export default function Recorder() {
 
     mediaRecorder.start();
 
-    // Live waveform
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
+    /* Live waveform */
+    const audioCtx = new AudioContext();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
 
     analyser.fftSize = 2048;
     source.connect(analyser);
 
-    liveAnalyserRef.current = analyser;
-    liveDataRef.current = new Uint8Array(analyser.fftSize);
+    analyserRef.current = analyser;
+    dataRef.current = new Uint8Array(analyser.fftSize);
 
-    drawLiveWave();
+    drawWave();
     setRecording(true);
   }
 
   function stopRecording() {
     mediaRecorderRef.current?.stop();
-    cancelAnimationFrame(liveAnimRef.current);
+    cancelAnimationFrame(animRef.current);
     setRecording(false);
   }
 
-  function drawLiveWave() {
+  function drawWave() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
     const draw = () => {
-      liveAnalyserRef.current.getByteTimeDomainData(liveDataRef.current);
+      analyserRef.current.getByteTimeDomainData(dataRef.current);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.beginPath();
 
-      const slice = canvas.width / liveDataRef.current.length;
+      const slice = canvas.width / dataRef.current.length;
       let x = 0;
 
-      for (let i = 0; i < liveDataRef.current.length; i++) {
-        const v = liveDataRef.current[i] / 128;
+      for (let i = 0; i < dataRef.current.length; i++) {
+        const v = dataRef.current[i] / 128;
         const y = (v * canvas.height) / 2;
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         x += slice;
       }
 
-      ctx.strokeStyle = "#1e88e5";
       ctx.lineWidth = 2;
+      ctx.strokeStyle = "#1e88e5";
       ctx.stroke();
 
-      liveAnimRef.current = requestAnimationFrame(draw);
+      animRef.current = requestAnimationFrame(draw);
     };
 
     draw();
   }
 
   return (
-    <div style={styles.page}>
-      {/* 🔒 FIXED HEADER */}
-      <div style={styles.fixedTop}>
+    <div className={styles.page}>
+      {/* FIXED TOP */}
+      <div className={styles.fixedTop}>
         <h2>🎙 Audio Recorder</h2>
 
         <button
           onClick={recording ? stopRecording : startRecording}
-          style={{
-            width: "100%",
-            padding: 14,
-            fontSize: 18,
-            background: recording ? "#e53935" : "#1e88e5",
-            color: "#fff",
-            border: "none",
-            borderRadius: 10,
-          }}
+          className={`${styles.primaryBtn} ${recording ? styles.stop : styles.start
+            }`}
         >
           {recording ? "Stop Recording" : "Start Recording"}
         </button>
 
-        {/* Live waveform */}
         <canvas
           ref={canvasRef}
           width={460}
           height={80}
-          style={{ marginTop: 12, width: "100%" }}
+          className={styles.liveCanvas}
         />
       </div>
 
-      {/* 🔽 SCROLLABLE RECORDINGS */}
-      <div style={styles.scrollArea}>
+      {/* SCROLLABLE RECORDINGS */}
+      <div className={styles.scrollArea}>
         <h3>📂 Recordings</h3>
 
         {recordings.length === 0 && (
-          <div style={{ color: "#777", fontSize: 14 }}>
-            No recordings yet
-          </div>
+          <div className={styles.empty}>No recordings yet</div>
         )}
 
         {recordings.map((rec, index) => (
@@ -187,16 +139,15 @@ export default function Recorder() {
       </div>
     </div>
   );
-
-
 }
+
+/* ---------------- Recording Item ---------------- */
 
 function RecordingItem({ rec, index }) {
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
 
   useEffect(() => {
-    // ✅ StrictMode-safe: remove old canvases
     waveRef.current.innerHTML = "";
 
     const ws = WaveSurfer.create({
@@ -209,44 +160,38 @@ function RecordingItem({ rec, index }) {
     waveSurferRef.current = ws;
     ws.load(rec.url);
 
-    // ❌ DO NOT destroy (prevents AbortError)
     return () => {
       waveSurferRef.current = null;
     };
   }, [rec.url]);
 
+  function saveRecording() {
+    const a = document.createElement("a");
+    a.href = rec.url;
+    a.download = `recording-${index + 1}.webm`;
+    a.click();
+  }
+
   return (
-    <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        padding: 10,
-        marginBottom: 12,
-      }}
-    >
-      <div style={{ fontSize: 14, marginBottom: 6 }}>
+    <div className={styles.recordingItem}>
+      <div className={styles.recordingTitle}>
         Recording {index + 1} — {rec.time}
       </div>
 
       <div ref={waveRef} />
 
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-        <button onClick={() => waveSurferRef.current?.playPause()}>
+      <div className={styles.controls}>
+        <button
+          className={styles.smallBtn}
+          onClick={() => waveSurferRef.current?.playPause()}
+        >
           ▶ Play / Pause
         </button>
 
-        <button
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = rec.url;
-            a.download = `recording-${index + 1}.webm`;
-            a.click();
-          }}
-        >
+        <button className={styles.smallBtn} onClick={saveRecording}>
           💾 Save
         </button>
       </div>
     </div>
   );
 }
-
