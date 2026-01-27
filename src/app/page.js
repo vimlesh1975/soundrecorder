@@ -41,13 +41,14 @@ export default function Recorder() {
       const url = URL.createObjectURL(blob);
 
       setRecordings((prev) => [
-        ...prev,
         {
           id: crypto.randomUUID(),
           url,
           time: new Date().toLocaleTimeString(),
         },
+        ...prev,
       ]);
+
     };
 
     mediaRecorder.start();
@@ -134,7 +135,7 @@ export default function Recorder() {
         )}
 
         {recordings.map((rec, index) => (
-          <RecordingItem key={rec.id} rec={rec} index={index} />
+          <RecordingItem key={rec.id} rec={rec} index={index} total={recordings.length} />
         ))}
       </div>
     </div>
@@ -143,9 +144,11 @@ export default function Recorder() {
 
 /* ---------------- Recording Item ---------------- */
 
-function RecordingItem({ rec, index }) {
+function RecordingItem({ rec, index, total }) {
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
+
+  const recordingNumber = total - index;
 
   useEffect(() => {
     waveRef.current.innerHTML = "";
@@ -168,14 +171,14 @@ function RecordingItem({ rec, index }) {
   function saveRecording() {
     const a = document.createElement("a");
     a.href = rec.url;
-    a.download = `recording-${index + 1}.webm`;
+    a.download = `recording-${recordingNumber}.webm`;
     a.click();
   }
 
   return (
     <div className={styles.recordingItem}>
       <div className={styles.recordingTitle}>
-        Recording {index + 1} — {rec.time}
+        Recording {recordingNumber} — {rec.time}
       </div>
 
       <div ref={waveRef} />
