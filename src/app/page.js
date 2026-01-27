@@ -141,19 +141,41 @@ export default function Recorder() {
 function RecordingItem({ rec, index }) {
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
+  const readyRef = useRef(false);
 
   useEffect(() => {
-    waveSurferRef.current = WaveSurfer.create({
+    const ws = WaveSurfer.create({
       container: waveRef.current,
       height: 60,
       waveColor: "#ccc",
       progressColor: "#1e88e5",
     });
 
-    waveSurferRef.current.load(rec.url);
+    waveSurferRef.current = ws;
 
-    return () => waveSurferRef.current?.destroy();
+    ws.on("ready", () => {
+      readyRef.current = true;
+    });
+
+    ws.load(rec.url);
+
+    return () => {
+      if (waveSurferRef.current && readyRef.current) {
+        try {
+          waveSurferRef.current.destroy();
+        } catch {}
+      }
+    };
   }, [rec.url]);
+
+  function saveRecording() {
+    const a = document.createElement("a");
+    a.href = rec.url;
+    a.download = `recording-${index + 1}-${Date.now()}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
   return (
     <div
@@ -170,12 +192,15 @@ function RecordingItem({ rec, index }) {
 
       <div ref={waveRef} />
 
-      <button
-        onClick={() => waveSurferRef.current.playPause()}
-        style={{ marginTop: 6 }}
-      >
-        ▶ Play / Pause
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <button onClick={() => waveSurferRef.current?.playPause()}>
+          ▶ Play / Pause
+        </button>
+
+        <button onClick={saveRecording}>
+          💾 Save
+        </button>
+      </div>
     </div>
   );
 }
