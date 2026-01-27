@@ -137,43 +137,29 @@ export default function Recorder() {
   );
 }
 
-// 🎧 Individual recording component
 function RecordingItem({ rec, index }) {
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
-  const readyRef = useRef(false);
 
- useEffect(() => {
-  // ✅ Clear previous DOM (StrictMode fix)
-  waveRef.current.innerHTML = "";
+  useEffect(() => {
+    // ✅ StrictMode-safe: remove old canvases
+    waveRef.current.innerHTML = "";
 
-  const ws = WaveSurfer.create({
-    container: waveRef.current,
-    height: 60,
-    waveColor: "#ccc",
-    progressColor: "#1e88e5",
-  });
+    const ws = WaveSurfer.create({
+      container: waveRef.current,
+      height: 60,
+      waveColor: "#ccc",
+      progressColor: "#1e88e5",
+    });
 
-  waveSurferRef.current = ws;
+    waveSurferRef.current = ws;
+    ws.load(rec.url);
 
-  ws.load(rec.url);
-
-  return () => {
-    try {
-      ws.destroy();
-    } catch {}
-  };
-}, [rec.url]);
-
-
-  function saveRecording() {
-    const a = document.createElement("a");
-    a.href = rec.url;
-    a.download = `recording-${index + 1}-${Date.now()}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+    // ❌ DO NOT destroy (prevents AbortError)
+    return () => {
+      waveSurferRef.current = null;
+    };
+  }, [rec.url]);
 
   return (
     <div
@@ -195,10 +181,18 @@ function RecordingItem({ rec, index }) {
           ▶ Play / Pause
         </button>
 
-        <button onClick={saveRecording}>
+        <button
+          onClick={() => {
+            const a = document.createElement("a");
+            a.href = rec.url;
+            a.download = `recording-${index + 1}.webm`;
+            a.click();
+          }}
+        >
           💾 Save
         </button>
       </div>
     </div>
   );
 }
+
