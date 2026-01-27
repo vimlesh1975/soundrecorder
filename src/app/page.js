@@ -175,6 +175,35 @@ function RecordingItem({ rec, index, total }) {
     a.click();
   }
 
+  async function downloadMp3() {
+    const recordingNumber = total - index;
+
+    try {
+      const response = await fetch(rec.url);
+      const webmBlob = await response.blob();
+
+      const formData = new FormData();
+      formData.append("file", webmBlob, "recording.webm");
+
+      const mp3Response = await fetch("/api/convert-mp3", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!mp3Response.ok) throw new Error();
+
+      const mp3Blob = await mp3Response.blob();
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(mp3Blob);
+      a.download = `recording-${recordingNumber}.mp3`;
+      a.click();
+    } catch {
+      alert("MP3 conversion failed");
+    }
+  }
+
+
   return (
     <div className={styles.recordingItem}>
       <div className={styles.recordingTitle}>
@@ -190,9 +219,11 @@ function RecordingItem({ rec, index, total }) {
         >
           ▶ Play / Pause
         </button>
-
         <button className={styles.smallBtn} onClick={saveRecording}>
-          💾 Save
+          💾 Save webm
+        </button>
+        <button className={styles.smallBtn} onClick={downloadMp3}>
+          💾 Save Mp3
         </button>
       </div>
     </div>
