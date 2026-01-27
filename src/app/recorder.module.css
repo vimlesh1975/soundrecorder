@@ -9,7 +9,7 @@
 /* Fixed top section */
 .fixedTop {
     padding: 20px;
-    background: #fff;
+    background: #2c0909;
     position: sticky;
     top: 0;
     z-index: 10;
