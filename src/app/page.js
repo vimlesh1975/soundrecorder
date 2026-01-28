@@ -4,6 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import styles from "./recorder.module.css";
 
+
+function getTimestamp(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, "0");
+
+  return (
+    date.getFullYear() +
+    pad(date.getMonth() + 1) +
+    pad(date.getDate()) +
+    "_" +
+    pad(date.getHours()) +
+    pad(date.getMinutes()) +
+    pad(date.getSeconds()) +
+    pad(date.getMilliseconds(), 3)
+  );
+}
+
+
+
 export default function Recorder() {
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
@@ -39,12 +57,13 @@ export default function Recorder() {
     mediaRecorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
-
+      const now = new Date(); // 👈 FIX: define it
       setRecordings((prev) => [
         {
           id: crypto.randomUUID(),
           url,
-          time: new Date().toLocaleTimeString(),
+          displayTime: now.toLocaleTimeString(),
+          timestamp: getTimestamp(now),   // 👈 recording time
         },
         ...prev,
       ]);
@@ -192,7 +211,11 @@ function RecordingItem({ rec, index, total }) {
   function saveRecording() {
     const a = document.createElement("a");
     a.href = rec.url;
-    a.download = `recording-${recordingNumber}.webm`;
+    // a.download = `recording-${recordingNumber}.webm`;
+    // a.download = `recording-${recordingNumber}_${getTimestamp()}.webm`;
+    a.download = `recording-${recordingNumber}_${rec.timestamp}.webm`;
+
+
     a.click();
   }
 
@@ -221,7 +244,9 @@ function RecordingItem({ rec, index, total }) {
 
       const a = document.createElement("a");
       a.href = URL.createObjectURL(mp3Blob);
-      a.download = `recording-${recordingNumber}.mp3`;
+      // a.download = `recording-${recordingNumber}_${getTimestamp()}.mp3`;
+      a.download = `recording-${recordingNumber}_${rec.timestamp}.mp3`;
+
       a.click();
     } catch {
       alert("MP3 conversion failed");
@@ -234,7 +259,7 @@ function RecordingItem({ rec, index, total }) {
   return (
     <div className={styles.recordingItem}>
       <div className={styles.recordingTitle}>
-        Recording {recordingNumber} — {rec.time}
+        Recording {recordingNumber}---{rec.displayTime}-{rec.timestamp}
       </div>
 
       <div ref={waveRef} />
