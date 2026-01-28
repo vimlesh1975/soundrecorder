@@ -31,6 +31,9 @@ export default function Recorder() {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
+  const recordingStartTimeRef = useRef(null);
+
+
   const [recording, setRecording] = useState(false);
   const [recordings, setRecordings] = useState([]);
 
@@ -55,6 +58,8 @@ export default function Recorder() {
     mediaRecorder.ondataavailable = (e) => chunksRef.current.push(e.data);
 
     mediaRecorder.onstop = () => {
+      const startTime = recordingStartTimeRef.current; // 👈 START TIME
+
       const blob = new Blob(chunksRef.current, { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
       const now = new Date(); // 👈 FIX: define it
@@ -62,13 +67,14 @@ export default function Recorder() {
         {
           id: crypto.randomUUID(),
           url,
-          displayTime: now.toLocaleTimeString(),
-          timestamp: getTimestamp(now),   // 👈 recording time
+          displayTime: startTime.toLocaleTimeString(),
+          timestamp: getTimestamp(startTime), // 👈 START timestamp
         },
         ...prev,
       ]);
 
     };
+    recordingStartTimeRef.current = new Date();
 
     mediaRecorder.start();
 
