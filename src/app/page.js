@@ -145,6 +145,9 @@ export default function Recorder() {
 /* ---------------- Recording Item ---------------- */
 
 function RecordingItem({ rec, index, total }) {
+
+  const [isConverting, setIsConverting] = useState(false);
+
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
 
@@ -176,6 +179,10 @@ function RecordingItem({ rec, index, total }) {
   }
 
   async function downloadMp3() {
+
+    if (isConverting) return;
+
+    setIsConverting(true);
     const recordingNumber = total - index;
 
     try {
@@ -200,6 +207,8 @@ function RecordingItem({ rec, index, total }) {
       a.click();
     } catch {
       alert("MP3 conversion failed");
+    } finally {
+      setIsConverting(false);
     }
   }
 
@@ -219,11 +228,24 @@ function RecordingItem({ rec, index, total }) {
         >
           ▶ Play / Pause
         </button>
-        <button className={styles.smallBtn} onClick={saveRecording}>
+        <button
+          className={styles.smallBtn}
+          onClick={saveRecording}
+
+
+        >
           💾 Save webm
         </button>
-        <button className={styles.smallBtn} onClick={downloadMp3}>
-          💾 Save Mp3
+        <button
+          className={styles.smallBtn}
+          onClick={downloadMp3}
+          disabled={isConverting}
+          style={{
+            opacity: isConverting ? 0.6 : 1,
+            cursor: isConverting ? "not-allowed" : "pointer",
+          }}
+        >
+          {isConverting ? "⏳ Converting…" : "💾 Save MP3"}
         </button>
       </div>
     </div>
