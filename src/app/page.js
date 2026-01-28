@@ -87,12 +87,18 @@ export default function Recorder() {
       const slice = canvas.width / dataRef.current.length;
       let x = 0;
 
+      const VISUAL_GAIN = 4; // try 2–4
+
       for (let i = 0; i < dataRef.current.length; i++) {
-        const v = dataRef.current[i] / 128;
-        const y = (v * canvas.height) / 2;
+        const v = (dataRef.current[i] - 128) / 128; // center around 0
+        const y =
+          canvas.height / 2 +
+          v * (canvas.height / 2) * VISUAL_GAIN;
+
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         x += slice;
       }
+
 
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#1e88e5";
@@ -158,9 +164,10 @@ function RecordingItem({ rec, index, total }) {
 
     const ws = WaveSurfer.create({
       container: waveRef.current,
-      height: 60,
+      height: 80,
       waveColor: "#ccc",
       progressColor: "#1e88e5",
+      normalize: true,     // 👈 important
     });
 
     waveSurferRef.current = ws;
