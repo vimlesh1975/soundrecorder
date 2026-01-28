@@ -64,3 +64,13 @@
 .smallBtn {
     padding: 6px 10px;
 }
+
+.liveCanvas {
+    width: 100%;
+    display: block;
+    margin-top: 12px;
+
+    background: #000;
+    /* 👈 contrast */
+    border-radius: 6px;
+}

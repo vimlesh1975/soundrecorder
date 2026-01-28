@@ -87,20 +87,31 @@ export default function Recorder() {
       const slice = canvas.width / dataRef.current.length;
       let x = 0;
 
-      const VISUAL_GAIN = 4; // try 2–4
+      // ---- AUTO GAIN CALCULATION ----
+      let sum = 0;
+      for (let i = 0; i < dataRef.current.length; i++) {
+        const v = (dataRef.current[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / dataRef.current.length);
+
+      // Prevent crazy scaling
+      const AUTO_GAIN = Math.min(4, Math.max(1.5, 0.3 / (rms || 0.0001)));
 
       for (let i = 0; i < dataRef.current.length; i++) {
-        const v = (dataRef.current[i] - 128) / 128; // center around 0
+        const v = (dataRef.current[i] - 128) / 128;
+
         const y =
           canvas.height / 2 +
-          v * (canvas.height / 2) * VISUAL_GAIN;
+          v * (canvas.height / 2) * AUTO_GAIN;
 
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         x += slice;
       }
 
 
-      ctx.lineWidth = 2;
+
+      ctx.lineWidth = 2.5;
       ctx.strokeStyle = "#1e88e5";
       ctx.stroke();
 
@@ -127,7 +138,7 @@ export default function Recorder() {
         <canvas
           ref={canvasRef}
           width={460}
-          height={80}
+          height={40}
           className={styles.liveCanvas}
         />
       </div>
