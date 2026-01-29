@@ -168,6 +168,15 @@ export default function Recorder() {
 
     draw();
   }
+  function deleteRecording(id) {
+    setRecordings((prev) => {
+      const rec = prev.find((r) => r.id === id);
+      if (rec?.url) {
+        URL.revokeObjectURL(rec.url); // ✅ prevent memory leak
+      }
+      return prev.filter((r) => r.id !== id);
+    });
+  }
 
   return (
     <div className={styles.page}>
@@ -210,7 +219,13 @@ export default function Recorder() {
         )}
 
         {recordings.map((rec, index) => (
-          <RecordingItem key={rec.id} rec={rec} index={index} total={recordings.length} />
+          <RecordingItem
+            key={rec.id}
+            rec={rec}
+            index={index}
+            total={recordings.length}
+            onDelete={deleteRecording}
+          />
         ))}
       </div>
     </div>
@@ -219,7 +234,7 @@ export default function Recorder() {
 
 /* ---------------- Recording Item ---------------- */
 
-function RecordingItem({ rec, index, total }) {
+function RecordingItem({ rec, index, total, onDelete }) {
 
   const [isConverting, setIsConverting] = useState(false);
 
@@ -329,6 +344,14 @@ function RecordingItem({ rec, index, total }) {
         >
           {isConverting ? "⏳ Converting…" : "💾 Save MP3"}
         </button>
+        <button
+          className={styles.smallBtn}
+          onClick={() => onDelete(rec.id)}
+          style={{ background: "#f44336", color: "#fff" }}
+        >
+          🗑 Delete
+        </button>
+
       </div>
     </div>
   );
