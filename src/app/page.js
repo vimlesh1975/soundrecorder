@@ -23,6 +23,10 @@ function getTimestamp(date = new Date()) {
 
 
 export default function Recorder() {
+
+  const [paused, setPaused] = useState(false);
+
+
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
   const dataRef = useRef(null);
@@ -75,6 +79,7 @@ export default function Recorder() {
 
     };
     recordingStartTimeRef.current = new Date();
+    setPaused(false);
 
     mediaRecorder.start();
 
@@ -97,7 +102,25 @@ export default function Recorder() {
     mediaRecorderRef.current?.stop();
     cancelAnimationFrame(animRef.current);
     setRecording(false);
+    setPaused(false);
   }
+
+  function pauseRecording() {
+    if (!mediaRecorderRef.current) return;
+
+    mediaRecorderRef.current.pause();
+    cancelAnimationFrame(animRef.current); // pause live waveform
+    setPaused(true);
+  }
+
+  function resumeRecording() {
+    if (!mediaRecorderRef.current) return;
+
+    mediaRecorderRef.current.resume();
+    drawWave(); // resume live waveform
+    setPaused(false);
+  }
+
 
   function drawWave() {
     const canvas = canvasRef.current;
@@ -159,6 +182,16 @@ export default function Recorder() {
         >
           {recording ? "Stop Recording" : "Start Recording"}
         </button>
+
+        {recording && (
+          <button
+            onClick={paused ? resumeRecording : pauseRecording}
+            className={styles.smallBtn}
+            style={{ marginTop: 10 }}
+          >
+            {paused ? "▶ Resume" : "⏸ Pause"}
+          </button>
+        )}
 
         <canvas
           ref={canvasRef}
