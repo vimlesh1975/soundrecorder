@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import styles from "./recorder.module.css";
+import { convertWebmToMp3 } from "./utils/mp3Converter";
 
 
 function getTimestamp(date = new Date()) {
@@ -326,6 +327,7 @@ export default function Recorder() {
 function RecordingItem({ rec, index, total, onDelete }) {
 
   const [isConverting, setIsConverting] = useState(false);
+  const [convertProgress, setConvertProgress] = useState(null);
   const [audioDuration, setAudioDuration] = useState(rec.duration || "00:00");
 
   const waveRef = useRef(null);
@@ -388,38 +390,49 @@ function RecordingItem({ rec, index, total, onDelete }) {
   }
 
   async function downloadMp3() {
-
     if (isConverting) return;
 
     setIsConverting(true);
+    setConvertProgress(0);
     const recordingNumber = total - index;
 
     try {
       const response = await fetch(rec.url);
       const webmBlob = await response.blob();
 
-      const formData = new FormData();
-      formData.append("file", webmBlob, "recording.webm");
+      let mp3Blob;
+      try {
+        // 1. Client-side conversion (no server timeout, no upload limit, runs 100% in browser)
+        mp3Blob = await convertWebmToMp3(webmBlob, (percent) => {
+          setConvertProgress(percent);
+        });
+      } catch (clientErr) {
+        console.warn("Client-side MP3 conversion failed, falling back to server route:", clientErr);
+        // 2. Graceful fallback to server API route
+        const formData = new FormData();
+        formData.append("file", webmBlob, "recording.webm");
 
-      const mp3Response = await fetch("/api/convert-mp3", {
-        method: "POST",
-        body: formData,
-      });
+        const mp3Response = await fetch("/api/convert-mp3", {
+          method: "POST",
+          body: formData,
+        });
 
-      if (!mp3Response.ok) throw new Error();
-
-      const mp3Blob = await mp3Response.blob();
+        if (!mp3Response.ok) throw clientErr;
+        mp3Blob = await mp3Response.blob();
+      }
 
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(mp3Blob);
-      // a.download = `recording-${recordingNumber}_${getTimestamp()}.mp3`;
+      const downloadUrl = URL.createObjectURL(mp3Blob);
+      a.href = downloadUrl;
       a.download = `recording-${recordingNumber}_${rec.timestamp}.mp3`;
-
       a.click();
-    } catch {
-      alert("MP3 conversion failed");
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error("MP3 conversion failed:", err);
+      alert("MP3 conversion failed: " + (err?.message || "Unknown error"));
     } finally {
       setIsConverting(false);
+      setConvertProgress(null);
     }
   }
 
@@ -461,7 +474,11 @@ function RecordingItem({ rec, index, total, onDelete }) {
             cursor: isConverting ? "not-allowed" : "pointer",
           }}
         >
-          {isConverting ? "⏳ Converting…" : "💾 Save MP3"}
+          {isConverting
+            ? convertProgress !== null
+              ? `⏳ Converting ${convertProgress}%…`
+              : "⏳ Converting…"
+            : "💾 Save MP3"}
         </button>
         <button
           className={styles.smallBtn}
