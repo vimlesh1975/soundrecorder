@@ -20,12 +20,24 @@ function getTimestamp(date = new Date()) {
   );
 }
 
+function formatDuration(totalSeconds = 0) {
+  const pad = (n, z = 2) => String(n).padStart(z, "0");
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
+  if (hours > 0) {
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
 
 export default function Recorder() {
 
   const [paused, setPaused] = useState(false);
-
+  const [recording, setRecording] = useState(false);
+  const [recordings, setRecordings] = useState([]);
+  const [duration, setDuration] = useState(0);
 
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
@@ -36,10 +48,17 @@ export default function Recorder() {
   const chunksRef = useRef([]);
 
   const recordingStartTimeRef = useRef(null);
+  const timerIntervalRef = useRef(null);
+  const elapsedMsRef = useRef(0);
+  const activeStartRef = useRef(null);
+  const finalDurationRef = useRef("00:00");
 
-
-  const [recording, setRecording] = useState(false);
-  const [recordings, setRecordings] = useState([]);
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, []);
 
   async function startRecording() {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -63,6 +82,7 @@ export default function Recorder() {
 
     mediaRecorder.onstop = () => {
       const startTime = recordingStartTimeRef.current; // 👈 START TIME
+      const fileDuration = finalDurationRef.current || formatDuration(0);
 
       const blob = new Blob(chunksRef.current, { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
@@ -73,6 +93,7 @@ export default function Recorder() {
           url,
           displayTime: startTime.toLocaleTimeString(),
           timestamp: getTimestamp(startTime), // 👈 START timestamp
+          duration: fileDuration,
         },
         ...prev,
       ]);
@@ -80,6 +101,19 @@ export default function Recorder() {
     };
     recordingStartTimeRef.current = new Date();
     setPaused(false);
+
+    // Reset and start recording duration timer
+    elapsedMsRef.current = 0;
+    activeStartRef.current = new Date().getTime();
+    setDuration(0);
+
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      if (activeStartRef.current) {
+        const currentSegment = new Date().getTime() - activeStartRef.current;
+        setDuration(Math.floor((elapsedMsRef.current + currentSegment) / 1000));
+      }
+    }, 200);
 
     mediaRecorder.start();
 
@@ -99,10 +133,26 @@ export default function Recorder() {
   }
 
   function stopRecording() {
+    let totalMs = elapsedMsRef.current;
+    if (activeStartRef.current) {
+      totalMs += new Date().getTime() - activeStartRef.current;
+    }
+    const finalSeconds = Math.max(0, Math.floor(totalMs / 1000));
+    finalDurationRef.current = formatDuration(finalSeconds);
+
     mediaRecorderRef.current?.stop();
     cancelAnimationFrame(animRef.current);
+
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    activeStartRef.current = null;
+    elapsedMsRef.current = 0;
+
     setRecording(false);
     setPaused(false);
+    setDuration(0);
   }
 
   function pauseRecording() {
@@ -110,6 +160,16 @@ export default function Recorder() {
 
     mediaRecorderRef.current.pause();
     cancelAnimationFrame(animRef.current); // pause live waveform
+
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (activeStartRef.current) {
+      elapsedMsRef.current += new Date().getTime() - activeStartRef.current;
+      activeStartRef.current = null;
+    }
+    setDuration(Math.floor(elapsedMsRef.current / 1000));
     setPaused(true);
   }
 
@@ -118,6 +178,16 @@ export default function Recorder() {
 
     mediaRecorderRef.current.resume();
     drawWave(); // resume live waveform
+
+    activeStartRef.current = new Date().getTime();
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      if (activeStartRef.current) {
+        const currentSegment = new Date().getTime() - activeStartRef.current;
+        setDuration(Math.floor((elapsedMsRef.current + currentSegment) / 1000));
+      }
+    }, 200);
+
     setPaused(false);
   }
 
@@ -182,7 +252,26 @@ export default function Recorder() {
     <div className={styles.page}>
       {/* FIXED TOP */}
       <div className={styles.fixedTop}>
-        <h2>🎙 Audio Recorder</h2>
+        <div className={styles.headerRow}>
+          <h2 className={styles.heading}>🎙 Audio Recorder</h2>
+          {recording && (
+            <div
+              className={`${styles.timerBadge} ${
+                paused ? styles.timerPaused : styles.timerRecording
+              }`}
+              aria-live="polite"
+              aria-label={
+                paused
+                  ? `Recording paused at ${formatDuration(duration)}`
+                  : `Recording duration: ${formatDuration(duration)}`
+              }
+            >
+              <span className={styles.timerDot} />
+              <span className={styles.timerDigits}>{formatDuration(duration)}</span>
+              {paused && <span className={styles.pausedTag}>PAUSED</span>}
+            </div>
+          )}
+        </div>
 
         <button
           onClick={recording ? stopRecording : startRecording}
@@ -237,6 +326,7 @@ export default function Recorder() {
 function RecordingItem({ rec, index, total, onDelete }) {
 
   const [isConverting, setIsConverting] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(rec.duration || "00:00");
 
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
@@ -244,6 +334,7 @@ function RecordingItem({ rec, index, total, onDelete }) {
   const recordingNumber = total - index;
 
   useEffect(() => {
+    if (!waveRef.current) return;
     waveRef.current.innerHTML = "";
 
     const ws = WaveSurfer.create({
@@ -255,9 +346,32 @@ function RecordingItem({ rec, index, total, onDelete }) {
     });
 
     waveSurferRef.current = ws;
-    ws.load(rec.url);
+
+    ws.on("error", (err) => {
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) return;
+      console.error("WaveSurfer error:", err);
+    });
+
+    ws.on("ready", () => {
+      const d = ws.getDuration();
+      if (d && !isNaN(d) && isFinite(d) && d > 0) {
+        setAudioDuration(formatDuration(Math.round(d)));
+      }
+    });
+
+    ws.load(rec.url).catch((err) => {
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) return;
+      console.error("WaveSurfer load error:", err);
+    });
 
     return () => {
+      try {
+        ws.destroy();
+      } catch (err) {
+        if (err?.name !== "AbortError" && !err?.message?.includes("aborted")) {
+          console.error("WaveSurfer destroy error:", err);
+        }
+      }
       waveSurferRef.current = null;
     };
   }, [rec.url]);
@@ -312,8 +426,13 @@ function RecordingItem({ rec, index, total, onDelete }) {
 
   return (
     <div className={styles.recordingItem}>
-      <div className={styles.recordingTitle}>
-        Recording {recordingNumber}---{rec.displayTime}-{rec.timestamp}
+      <div className={styles.recordingHeader}>
+        <div className={styles.recordingTitle}>
+          Recording {recordingNumber}---{rec.displayTime}-{rec.timestamp}
+        </div>
+        <div className={styles.recordingDuration}>
+          {audioDuration || rec.duration || "00:00"}
+        </div>
       </div>
 
       <div ref={waveRef} />

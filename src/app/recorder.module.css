@@ -16,6 +16,114 @@
     border-bottom: 1px solid #eee;
 }
 
+.headerRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    min-height: 36px;
+}
+
+.heading {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.01em;
+}
+
+/* Timer Badge right-aligned in header row */
+.timerBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    user-select: none;
+    flex-shrink: 0;
+    animation: timerFadeIn 0.2s ease-out;
+}
+
+@keyframes timerFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.timerRecording {
+    background: rgba(229, 57, 53, 0.2);
+    border: 1px solid rgba(229, 57, 53, 0.55);
+    color: #ff5252;
+    box-shadow: 0 0 12px rgba(229, 57, 53, 0.3);
+}
+
+.timerRecording .timerDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ff5252;
+    box-shadow: 0 0 8px #ff5252;
+    animation: pulseDot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseDot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.35;
+        transform: scale(0.8);
+    }
+}
+
+.timerPaused {
+    background: rgba(255, 179, 0, 0.2);
+    border: 1px solid rgba(255, 179, 0, 0.55);
+    color: #ffb300;
+    box-shadow: 0 0 12px rgba(255, 179, 0, 0.25);
+}
+
+.timerPaused .timerDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ffb300;
+    box-shadow: 0 0 8px #ffb300;
+    animation: none;
+    opacity: 0.85;
+}
+
+.timerDigits {
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.pausedTag {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(255, 179, 0, 0.28);
+    color: #ffd54f;
+    line-height: 1;
+}
+
+
 /* Scrollable recordings area */
 .scrollArea {
     flex: 1;
@@ -32,9 +140,35 @@
     margin-bottom: 12px;
 }
 
+.recordingHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
 .recordingTitle {
     font-size: 14px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
+    word-break: break-all;
+}
+
+.recordingDuration {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #1e88e5;
+    background: rgba(30, 136, 229, 0.1);
+    border: 1px solid rgba(30, 136, 229, 0.28);
+    padding: 2px 7px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
 }
 
 .controls {
