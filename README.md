@@ -2,8 +2,6 @@
 
 ![Audio Recorder](./image.png)
 
-<img width="479" height="727" alt="image" src="https://github.com/user-attachments/assets/74a1d414-bbc7-4743-9b59-0ae34a0b7f77" />
-
 A browser-based studio audio recorder built with **Next.js**, **Web Audio API**, **WaveSurfer.js**, **RNNoise WebAssembly**, and **LAME MP3 Encoder**.
 
 ---
