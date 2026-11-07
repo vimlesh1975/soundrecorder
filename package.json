@@ -11,6 +11,7 @@
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@shiguredo/rnnoise-wasm": "^2025.1.5",
     "next": "16.1.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",

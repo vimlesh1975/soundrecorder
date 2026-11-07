@@ -23,7 +23,7 @@ export async function convertWebmToMp3(webmBlob, onProgress) {
 
   let audioCtx;
   try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
   } catch {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import styles from "./recorder.module.css";
 import { convertWebmToMp3 } from "./utils/mp3Converter";
+import { createRemedyAudioUrl } from "./utils/audioRemedy";
 
 
 function getTimestamp(date = new Date()) {
@@ -45,6 +46,12 @@ export default function Recorder() {
   const [duration, setDuration] = useState(0);
   const [micReady, setMicReady] = useState(false);
   const [deviceName, setDeviceName] = useState("Detecting microphone...");
+  const [liveMicPrefs, setLiveMicPrefs] = useState({
+    noiseSuppression: false,
+    echoCancellation: false,
+    autoGainControl: false,
+  });
+  const liveMicPrefsRef = useRef(liveMicPrefs);
 
   const analyserRef = useRef(null);
   const dataRef = useRef(null);
@@ -70,26 +77,27 @@ export default function Recorder() {
   const finalDurationRef = useRef("00:00");
 
   function updateLevelMeter(rms, peak) {
-    // Combine RMS and Peak so both steady speech and sharp transients show accurately
-    const effectiveAmp = Math.min(1, Math.max(rms * 2.2, peak * 0.95));
+    // True audible amplitude (after 85Hz high-pass filter, without artificial noise-floor boost)
+    const effectiveAmp = Math.min(1, Math.max(rms, peak * 0.85));
 
-    // Convert to decibels (dBFS range: -60 dB to 0 dB)
+    // Convert to decibels (dBFS range: -55 dB to 0 dB)
     const MIN_DB = -55;
-    const rawDb = effectiveAmp > 0.0001 ? 20 * Math.log10(effectiveAmp) : MIN_DB;
+    const rawDb = effectiveAmp > 0.00001 ? 20 * Math.log10(effectiveAmp) : MIN_DB;
     const clampedDb = Math.max(MIN_DB, Math.min(0, rawDb));
 
-    // Normalized 0..1 level from dB scale
-    const targetLevel = (clampedDb - MIN_DB) / (0 - MIN_DB);
+    // Normalized 0..1 level from dB scale (noise gate below -52 dB so room silence = 0)
+    const rawTarget = (clampedDb - MIN_DB) / (0 - MIN_DB);
+    const targetLevel = clampedDb <= -52 ? 0 : rawTarget;
 
     // Fast attack, smooth release
     const prev = smoothedLevelRef.current;
     const smoothed =
       targetLevel > prev
         ? prev + (targetLevel - prev) * 0.45
-        : prev + (targetLevel - prev) * 0.14;
-    smoothedLevelRef.current = smoothed;
+        : prev + (targetLevel - prev) * 0.16;
+    smoothedLevelRef.current = smoothed < 0.01 ? 0 : smoothed;
 
-    const activeSegments = Math.round(smoothed * TOTAL_LED_SEGMENTS);
+    const activeSegments = Math.round(smoothedLevelRef.current * TOTAL_LED_SEGMENTS);
     const now = performance.now();
 
     // Update peak hold segment
@@ -114,7 +122,9 @@ export default function Recorder() {
     // Update dB readout and zone status badge
     if (dbValueRef.current) {
       dbValueRef.current.textContent =
-        clampedDb <= MIN_DB + 1 ? "-∞ dB" : `${Math.round(clampedDb)} dB`;
+        activeSegments === 0 || clampedDb <= -52
+          ? "-∞ dB"
+          : `${Math.round(clampedDb)} dB`;
     }
 
     if (levelZoneRef.current) {
@@ -139,12 +149,12 @@ export default function Recorder() {
 
     const tick = () => {
       if (!analyserRef.current || !dataRef.current) return;
-      analyserRef.current.getByteTimeDomainData(dataRef.current);
+      analyserRef.current.getFloatTimeDomainData(dataRef.current);
 
       let sum = 0;
       let peak = 0;
       for (let i = 0; i < dataRef.current.length; i++) {
-        const v = (dataRef.current[i] - 128) / 128;
+        const v = dataRef.current[i];
         sum += v * v;
         const absV = Math.abs(v);
         if (absV > peak) peak = absV;
@@ -194,7 +204,9 @@ export default function Recorder() {
     }
   }
 
-  async function ensureMicMonitoring(forceRefresh = false) {
+  async function ensureMicMonitoring(forceRefresh = false, customPrefs = null) {
+    const prefs = customPrefs || liveMicPrefsRef.current;
+
     if (
       !forceRefresh &&
       streamRef.current &&
@@ -228,9 +240,9 @@ export default function Recorder() {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { ideal: "default" },
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          echoCancellation: prefs.echoCancellation,
+          noiseSuppression: prefs.noiseSuppression,
+          autoGainControl: prefs.autoGainControl,
         },
       });
     } catch {
@@ -245,18 +257,33 @@ export default function Recorder() {
     audioCtxRef.current = audioCtx;
 
     const source = audioCtx.createMediaStreamSource(stream);
-    const analyser = audioCtx.createAnalyser();
+    const meterHighPass = audioCtx.createBiquadFilter();
+    meterHighPass.type = "highpass";
+    meterHighPass.frequency.value = 85;
+    meterHighPass.Q.value = 0.707;
 
+    const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.8;
-    source.connect(analyser);
+
+    source.connect(meterHighPass);
+    meterHighPass.connect(analyser);
 
     analyserRef.current = analyser;
-    dataRef.current = new Uint8Array(analyser.fftSize);
+    dataRef.current = new Float32Array(analyser.fftSize);
 
     setMicReady(true);
     startLevelLoop();
     return stream;
+  }
+
+  function handleToggleLiveMicPref(key, checked) {
+    const next = { ...liveMicPrefsRef.current, [key]: checked };
+    liveMicPrefsRef.current = next;
+    setLiveMicPrefs(next);
+    if (!recording) {
+      ensureMicMonitoring(true, next).catch(() => {});
+    }
   }
 
   useEffect(() => {
@@ -538,6 +565,67 @@ export default function Recorder() {
             <span className={styles.scaleYellow}>🟡 Caution (-15 to -5 dB)</span>
             <span className={styles.scaleRed}>🔴 Peak (0 dB)</span>
           </div>
+
+          {/* #1: LIVE BROWSER WEBRTC MIC CANCELLATION TOGGLES */}
+          <div
+            className={styles.liveMicFiltersRow}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className={styles.liveMicFiltersTitle}>Live Mic:</span>
+            <label
+              className={`${styles.liveFilterPill} ${
+                liveMicPrefs.noiseSuppression ? styles.liveFilterActive : ""
+              }`}
+              title="Browser WebRTC Live Noise Suppression (getUserMedia)"
+            >
+              <input
+                type="checkbox"
+                checked={liveMicPrefs.noiseSuppression}
+                disabled={recording}
+                onChange={(e) =>
+                  handleToggleLiveMicPref("noiseSuppression", e.target.checked)
+                }
+                className={styles.remedyCheckbox}
+              />
+              <span>Noise Cancel</span>
+            </label>
+
+            <label
+              className={`${styles.liveFilterPill} ${
+                liveMicPrefs.echoCancellation ? styles.liveFilterActive : ""
+              }`}
+              title="Browser WebRTC Live Echo Cancellation (getUserMedia)"
+            >
+              <input
+                type="checkbox"
+                checked={liveMicPrefs.echoCancellation}
+                disabled={recording}
+                onChange={(e) =>
+                  handleToggleLiveMicPref("echoCancellation", e.target.checked)
+                }
+                className={styles.remedyCheckbox}
+              />
+              <span>Echo Cancel</span>
+            </label>
+
+            <label
+              className={`${styles.liveFilterPill} ${
+                liveMicPrefs.autoGainControl ? styles.liveFilterActive : ""
+              }`}
+              title="Browser WebRTC Live Auto Gain Control (getUserMedia)"
+            >
+              <input
+                type="checkbox"
+                checked={liveMicPrefs.autoGainControl}
+                disabled={recording}
+                onChange={(e) =>
+                  handleToggleLiveMicPref("autoGainControl", e.target.checked)
+                }
+                className={styles.remedyCheckbox}
+              />
+              <span>Auto Gain</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -571,10 +659,35 @@ function RecordingItem({ rec, index, total, onDelete }) {
   const [convertProgress, setConvertProgress] = useState(null);
   const [audioDuration, setAudioDuration] = useState(rec.duration || "00:00");
 
+  // 4 Separate Post-Recording Audio Remedy Checkboxes
+  const [remedyOptions, setRemedyOptions] = useState({
+    highPass: false,
+    peakLimiter: false,
+    spectralDenoise: false,
+    aiRnnoise: false,
+  });
+  const [processedUrl, setProcessedUrl] = useState(null);
+  const [isProcessingRemedy, setIsProcessingRemedy] = useState(false);
+
   const waveRef = useRef(null);
   const waveSurferRef = useRef(null);
+  const remedyCacheRef = useRef(new Map());
 
   const recordingNumber = total - index;
+  const anyRemedyActive =
+    remedyOptions.highPass ||
+    remedyOptions.peakLimiter ||
+    remedyOptions.spectralDenoise ||
+    remedyOptions.aiRnnoise;
+  const activeUrl = anyRemedyActive && processedUrl ? processedUrl : rec.url;
+
+  useEffect(() => {
+    const cache = remedyCacheRef.current;
+    return () => {
+      cache.forEach((url) => URL.revokeObjectURL(url));
+      cache.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!waveRef.current) return;
@@ -583,8 +696,8 @@ function RecordingItem({ rec, index, total, onDelete }) {
     const ws = WaveSurfer.create({
       container: waveRef.current,
       height: 80,
-      waveColor: "#ccc",
-      progressColor: "#1e88e5",
+      waveColor: anyRemedyActive ? "#a5d6a7" : "#ccc",
+      progressColor: anyRemedyActive ? "#2e7d32" : "#1e88e5",
       normalize: true,     // 👈 important
     });
 
@@ -602,7 +715,7 @@ function RecordingItem({ rec, index, total, onDelete }) {
       }
     });
 
-    ws.load(rec.url).catch((err) => {
+    ws.load(activeUrl).catch((err) => {
       if (err?.name === "AbortError" || err?.message?.includes("aborted")) return;
       console.error("WaveSurfer load error:", err);
     });
@@ -617,16 +730,58 @@ function RecordingItem({ rec, index, total, onDelete }) {
       }
       waveSurferRef.current = null;
     };
-  }, [rec.url]);
+  }, [activeUrl, anyRemedyActive]);
+
+  async function handleOptionChange(key, checked) {
+    const nextOptions = { ...remedyOptions, [key]: checked };
+    setRemedyOptions(nextOptions);
+
+    const isAnyChecked =
+      nextOptions.highPass ||
+      nextOptions.peakLimiter ||
+      nextOptions.spectralDenoise ||
+      nextOptions.aiRnnoise;
+
+    if (!isAnyChecked) {
+      setProcessedUrl(null);
+      return;
+    }
+
+    const cacheKey = `${nextOptions.highPass}-${nextOptions.peakLimiter}-${nextOptions.spectralDenoise}-${nextOptions.aiRnnoise}`;
+    if (remedyCacheRef.current.has(cacheKey)) {
+      setProcessedUrl(remedyCacheRef.current.get(cacheKey));
+      return;
+    }
+
+    setIsProcessingRemedy(true);
+    try {
+      const result = await createRemedyAudioUrl(rec.url, nextOptions);
+      remedyCacheRef.current.set(cacheKey, result.url);
+      setProcessedUrl(result.url);
+    } catch (err) {
+      console.error("Audio remedy processing failed:", err);
+      alert("Failed to apply audio remedy: " + (err?.message || "Unknown error"));
+    } finally {
+      setIsProcessingRemedy(false);
+    }
+  }
+
+  function getRemedySuffix() {
+    if (!anyRemedyActive || !processedUrl) return "";
+    const parts = [];
+    if (remedyOptions.highPass) parts.push("hp");
+    if (remedyOptions.peakLimiter) parts.push("lim");
+    if (remedyOptions.spectralDenoise) parts.push("spec");
+    if (remedyOptions.aiRnnoise) parts.push("ai");
+    return `_remedy-${parts.join("-")}`;
+  }
 
   function saveRecording() {
     const a = document.createElement("a");
-    a.href = rec.url;
-    // a.download = `recording-${recordingNumber}.webm`;
-    // a.download = `recording-${recordingNumber}_${getTimestamp()}.webm`;
-    a.download = `recording-${recordingNumber}_${rec.timestamp}.webm`;
-
-
+    a.href = activeUrl;
+    const ext = anyRemedyActive && processedUrl ? "wav" : "webm";
+    const suffix = getRemedySuffix();
+    a.download = `recording-${recordingNumber}_${rec.timestamp}${suffix}.${ext}`;
     a.click();
   }
 
@@ -636,22 +791,23 @@ function RecordingItem({ rec, index, total, onDelete }) {
     setIsConverting(true);
     setConvertProgress(0);
     const recordingNumber = total - index;
+    const suffix = getRemedySuffix();
 
     try {
-      const response = await fetch(rec.url);
-      const webmBlob = await response.blob();
+      const response = await fetch(activeUrl);
+      const sourceBlob = await response.blob();
 
       let mp3Blob;
       try {
         // 1. Client-side conversion (no server timeout, no upload limit, runs 100% in browser)
-        mp3Blob = await convertWebmToMp3(webmBlob, (percent) => {
+        mp3Blob = await convertWebmToMp3(sourceBlob, (percent) => {
           setConvertProgress(percent);
         });
       } catch (clientErr) {
         console.warn("Client-side MP3 conversion failed, falling back to server route:", clientErr);
         // 2. Graceful fallback to server API route
         const formData = new FormData();
-        formData.append("file", webmBlob, "recording.webm");
+        formData.append("file", sourceBlob, "recording.webm");
 
         const mp3Response = await fetch("/api/convert-mp3", {
           method: "POST",
@@ -665,7 +821,7 @@ function RecordingItem({ rec, index, total, onDelete }) {
       const a = document.createElement("a");
       const downloadUrl = URL.createObjectURL(mp3Blob);
       a.href = downloadUrl;
-      a.download = `recording-${recordingNumber}_${rec.timestamp}.mp3`;
+      a.download = `recording-${recordingNumber}_${rec.timestamp}${suffix}.mp3`;
       a.click();
       URL.revokeObjectURL(downloadUrl);
     } catch (err) {
@@ -689,6 +845,79 @@ function RecordingItem({ rec, index, total, onDelete }) {
         </div>
       </div>
 
+      {/* SEPARATE POST-RECORDING REMEDY CHECKBOXES */}
+      <div className={styles.remedyOptionsGroup}>
+        <label
+          className={`${styles.remedyOptionPill} ${
+            remedyOptions.highPass ? styles.remedyOptionActive : ""
+          }`}
+          title="BiquadFilterNode at 85 Hz: Removes 11-12 Hz USB sub-bass rumble and low P/Bh/F pop energy"
+        >
+          <input
+            type="checkbox"
+            checked={remedyOptions.highPass}
+            disabled={isProcessingRemedy}
+            onChange={(e) => handleOptionChange("highPass", e.target.checked)}
+            className={styles.remedyCheckbox}
+          />
+          <span>High-Pass</span>
+        </label>
+
+        <label
+          className={`${styles.remedyOptionPill} ${
+            remedyOptions.peakLimiter ? styles.remedyOptionActive : ""
+          }`}
+          title="DynamicsCompressorNode (1ms attack) + Lookahead Limiter: Stops 1-3ms consonant spikes from jumping 3x higher"
+        >
+          <input
+            type="checkbox"
+            checked={remedyOptions.peakLimiter}
+            disabled={isProcessingRemedy}
+            onChange={(e) => handleOptionChange("peakLimiter", e.target.checked)}
+            className={styles.remedyCheckbox}
+          />
+          <span>Peak Limiter</span>
+        </label>
+
+        <label
+          className={`${styles.remedyOptionPill} ${
+            remedyOptions.spectralDenoise ? styles.remedyOptionActive : ""
+          }`}
+          title="#2 Spectral Noise Reduction (Audacity-style FFT Spectral Subtraction + 7.5 kHz Hiss Filter)"
+        >
+          <input
+            type="checkbox"
+            checked={remedyOptions.spectralDenoise}
+            disabled={isProcessingRemedy}
+            onChange={(e) =>
+              handleOptionChange("spectralDenoise", e.target.checked)
+            }
+            className={styles.remedyCheckbox}
+          />
+          <span>Spectral NR</span>
+        </label>
+
+        <label
+          className={`${styles.remedyOptionPill} ${
+            remedyOptions.aiRnnoise ? styles.remedyOptionActive : ""
+          }`}
+          title="#3 AI Neural Voice Isolation (RNNoise WebAssembly like OBS / Discord)"
+        >
+          <input
+            type="checkbox"
+            checked={remedyOptions.aiRnnoise}
+            disabled={isProcessingRemedy}
+            onChange={(e) => handleOptionChange("aiRnnoise", e.target.checked)}
+            className={styles.remedyCheckbox}
+          />
+          <span>AI RNNoise</span>
+        </label>
+
+        {isProcessingRemedy && (
+          <span className={styles.remedyProcessingTag}>⏳</span>
+        )}
+      </div>
+
       <div ref={waveRef} />
 
       <div className={styles.controls}>
@@ -701,10 +930,8 @@ function RecordingItem({ rec, index, total, onDelete }) {
         <button
           className={styles.smallBtn}
           onClick={saveRecording}
-
-
         >
-          💾 Save webm
+          💾 {anyRemedyActive && processedUrl ? "Save WAV" : "Save webm"}
         </button>
         <button
           className={styles.smallBtn}

@@ -173,8 +173,66 @@
 
 .controls {
     display: flex;
+    flex-wrap: nowrap;
     gap: 8px;
     margin-top: 6px;
+}
+
+.remedyOptionsGroup {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.remedyOptionPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.72rem;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.remedyOptionActive {
+    background: rgba(46, 125, 50, 0.14);
+    border-color: rgba(46, 125, 50, 0.55);
+}
+
+.remedyCheckbox {
+    width: 14px;
+    height: 14px;
+    accent-color: #2e7d32;
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.remedyProcessingTag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #f57c00;
+    white-space: nowrap;
+}
+
+.remedyActiveBadge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #2e7d32;
+    color: #fff;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
 /* Buttons */
@@ -185,6 +243,7 @@
     color: #fff;
     border: none;
     border-radius: 10px;
+    white-space: nowrap;
 }
 
 .start {
@@ -197,6 +256,8 @@
 
 .smallBtn {
     padding: 6px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .liveCanvas {
@@ -399,3 +460,46 @@
 .scaleRed {
     color: #e57373;
 }
+
+.liveMicFiltersRow {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.liveMicFiltersTitle {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #d7ccc8;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.liveFilterPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #e0e0e0;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.liveFilterActive {
+    background: rgba(0, 230, 118, 0.18);
+    border-color: rgba(0, 230, 118, 0.55);
+    color: #69f0ae;
+}
+

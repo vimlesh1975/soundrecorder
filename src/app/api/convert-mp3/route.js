@@ -38,6 +38,8 @@ export async function POST(req) {
             "-i",
             inputPath,
             "-vn",
+            "-ar",
+            "48000",
             "-ab",
             "192k",
             outputPath,
